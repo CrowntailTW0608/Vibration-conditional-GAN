@@ -20,7 +20,7 @@ tf.random.set_seed(42)
 # 定義生成器模型
 def build_generator():
     latent_dim = 100
-    condition_dim = 3
+    condition_dim = 9
 
     latent_input = keras.Input(shape=(latent_dim,))
     condition_input = keras.Input(shape=(condition_dim,))
@@ -47,9 +47,9 @@ def build_generator():
 
 # 定義判別器模型
 def build_discriminator():
-    condition_dim = 3
+    condition_dim = 9
 
-    input_image = keras.Input(shape=(5_000,))
+    input_image = keras.Input(shape=(5_000,1))
     condition_input = keras.Input(shape=(condition_dim,))
 
     # 將圖像與條件向量串聯起來
@@ -86,20 +86,25 @@ def build_cgan(generator, discriminator):
     model = keras.Model(inputs=[latent_input, condition_input], outputs=validity, name='cgan')
     return model
 
+
 data_dir =r'D:\dataset\MAFAULDA'
-use_column= 'bearing1_rad'
-batch_size = 32
+use_columns= ['bearing1_axi','bearing1_rad','bearing1_tan', 'bearing2_axi','bearing2_rad','bearing2_tan']
+use_columns= ['bearing1_rad']
+batch_size = 128
 shuffle = True
-validation_split = 0.1
-test_split = 0.1
-split_length=5_000
 epochs = 10000
 
-# 建立VibrationDataset實例
-myVib = VibrationDataset( data_dir, use_column=use_column, batch_size=batch_size, shuffle=shuffle,
-                          split_length=split_length, validation_split=validation_split, test_split=test_split)
+split_length=5_000
+channels = len(use_columns) #1
 
-train_dataset, validation_dataset, test_dataset = myVib.get_dataset_splits()
+image_dim = (split_length,channels)
+condition_dim = 7+2
+latent_dim = 100
+
+# 建立VibrationDataset實例
+myVib = VibrationDataset(data_dir, use_columns=use_columns, batch_size=batch_size,
+                         shuffle=shuffle, split_length=split_length)
+dataset= myVib.get_dataset()
 
 
 
@@ -123,7 +128,7 @@ early_stopping = keras.callbacks.EarlyStopping(monitor='val_loss', patience=1000
 epochs = 10000
 for epoch in range(epochs):
     print('epoch : ',epoch)
-    for batch,(x_batch, y_batch) in enumerate(train_dataset):
+    for batch,(x_batch, y_batch) in enumerate(dataset):
 
         # 產生隨機噪聲和條件向量
         noise = np.random.normal(0, 1, (batch_size, 100))
@@ -146,34 +151,10 @@ for epoch in range(epochs):
         valid_labels = np.ones((batch_size, 1))
         g_loss = cgan.train_on_batch([noise, condition], valid_labels)
 
-    # 在每個epoch結束時，使用驗證集進行評估（可選）
-    for x_val_batch, y_val_batch in validation_dataset:
-        # 產生隨機噪聲和條件向量
-        noise = np.random.normal(0, 1, (x_val_batch.shape[0], 100))
-        condition = y_val_batch#np.random.random((x_val_batch.shape[0], 3))
-
-        # 生成器生成圖像
-        generated_images = generator.predict([noise, condition])
-
-        # 選擇真實圖像
-        real_images = x_val_batch
-
-        # 訓練判別器
-        d_loss_real = discriminator.evaluate([real_images, condition], np.ones((x_val_batch.shape[0], 1)), verbose=0)
-        d_loss_fake = discriminator.evaluate([generated_images, condition], np.zeros((x_val_batch.shape[0], 1)),
-                                             verbose=0)
-        d_loss_val = 0.5 * np.add(d_loss_real, d_loss_fake)
-
-        # 訓練生成器
-        noise = np.random.normal(0, 1, (x_val_batch.shape[0], 100))
-        condition = np.random.random((x_val_batch.shape[0], 3))
-        valid_labels = np.ones((x_val_batch.shape[0], 1))
-        g_loss_val = cgan.evaluate([noise, condition], valid_labels, verbose=0)
 
     # 在每個epoch輸出loss
     if epoch % 50 == 0:
         print(f"train           [D loss: {d_loss[0]} | D accuracy: {100 * d_loss[1]}] [G loss: {g_loss}]")
-        print(f"Validation loss [D loss: {d_loss_val[0]} | D accuracy: {100 * d_loss_val[1]}] [G loss: {g_loss_val}]")
 
         generator.save_weights('cgan_generator_{}.h5'.format(epoch))
     # 使用EarlyStopping判斷是否提前停止訓練（可選）

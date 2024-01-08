@@ -4,7 +4,8 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+
 
 class VibrationDataset:
 
@@ -21,6 +22,8 @@ class VibrationDataset:
         self.split_length = split_length
         self.N = 5 * 50_000
 
+        self.condition_dim = 7+2 # 7cats + lvl + rps
+
         assert self.N % split_length==0
 
     def _cat_2_num(self,cat):
@@ -32,12 +35,12 @@ class VibrationDataset:
                   'cage_fault':5,
                   'outer_race':6,}
 
-        return _dict[cat]/6
+        return np.eye(7)[_dict[cat]]
 
     def _get_condition(self, file_path):
 
-        rpm = os.path.splitext(basename(file_path))[0]
-        rpm = float(rpm) / 65
+        rps = os.path.splitext(basename(file_path))[0]
+        rps = float(rps) / 65
         cat = basename(dirname(dirname(file_path)))
         lvl = basename(dirname(file_path))
 
@@ -56,14 +59,17 @@ class VibrationDataset:
         else:
             lvl = float(lvl.replace('g', ''))
             lvl = lvl / 35
+
         cat = self._cat_2_num(cat)
 
-        return rpm, cat, lvl
+        condition = np.concatenate([cat,np.array([lvl, rps])])
+
+        return condition
 
     def _load_data(self, file_path):
         df = pd.read_csv(file_path,names=['tachometer',\
-                                          'bearing1_axi','bearing1_rad','bearing1_tan',\
-                                          'bearing2_axi','bearing2_rad','bearing2_tan',\
+                                          'bearing1_axi','bearing1_tan','bearing1_rad',\
+                                          'bearing2_axi','bearing2_tan','bearing2_rad',\
                                           'microphone'])  # Assuming CSV format, adjust accordingly if using different file types
         data = df[self.use_columns].values
         features = data
@@ -109,10 +115,12 @@ class VibrationDataset:
         return dataset
 
     def get_dataset(self):
+
         features, conditions = self._load_all_data()
 
         scaler = StandardScaler()
-        features = scaler.fit_transform(features).reshape(-1, self.split_length, 1)
+        scaler = MinMaxScaler(feature_range  =(-1, 1))
+        features = scaler.fit_transform(features).reshape(-1, self.split_length, len(self.use_columns))
 
         dataset = self._preprocess_dataset(features, conditions)
 

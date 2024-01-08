@@ -15,62 +15,6 @@ from tensorflow.keras import layers
 np.random.seed(42)
 tf.random.set_seed(42)
 
-
-
-# 定義生成器模型
-def build_generator(latent_dim, image_dim):
-
-    condition_dim = 3
-
-    latent_input = keras.Input(shape=(latent_dim,))
-    condition_input = keras.Input(shape=(condition_dim,))
-
-    # 將隨機噪聲與條件向量串聯起來
-    combined_input = layers.Concatenate()([latent_input, condition_input])
-
-    x = layers.Dense(256)(combined_input)
-    x = layers.LeakyReLU(alpha=0.2)(x)
-    x = layers.BatchNormalization(momentum=0.8)(x)
-
-    x = layers.Dense(512)(x)
-    x = layers.LeakyReLU(alpha=0.2)(x)
-    x = layers.BatchNormalization(momentum=0.8)(x)
-
-    x = layers.Dense(1024)(x)
-    x = layers.LeakyReLU(alpha=0.2)(x)
-    x = layers.BatchNormalization(momentum=0.8)(x)
-
-    output = layers.Dense(image_dim, activation='tanh')(x)
-
-    model = keras.Model(inputs=[latent_input, condition_input], outputs=output, name='generator')
-    return model
-
-# 定義判別器模型
-def build_discriminator(image_dim):
-    condition_dim = 3
-
-    input_image = keras.Input(shape=(image_dim,))
-    condition_input = keras.Input(shape=(condition_dim,))
-
-    # 將圖像與條件向量串聯起來
-    combined_input = layers.Concatenate()([input_image, condition_input])
-
-    x = layers.Dense(1024)(combined_input)
-    x = layers.LeakyReLU(alpha=0.2)(x)
-
-    x = layers.Dense(512)(x)
-    x = layers.LeakyReLU(alpha=0.2)(x)
-
-    x = layers.Dense(256)(x)
-    x = layers.LeakyReLU(alpha=0.2)(x)
-
-    output = layers.Dense(1, activation='sigmoid')(x)
-
-    model = keras.Model(inputs=[input_image, condition_input], outputs=output, name='discriminator')
-    return model
-
-
-
 # 定義生成器模型
 def build_generator(latent_dim, condition_dim):
 
@@ -103,12 +47,16 @@ def build_generator(latent_dim, condition_dim):
     return model
 
 # 定義判別器模型
-def build_discriminator(image_dim=(5_000,1),condition_dim=3,use_bn=True):
+def build_discriminator(image_dim=(5_000,1),condition_dim=9,use_bn=True):
 
     input_image = layers.Input(shape=image_dim)
     input_label = layers.Input(shape=condition_dim, dtype=tf.float32)
-    # label_emb = layers.Embedding(3, 32)(input_label)
-    emb_img = layers.Reshape((image_dim[0], image_dim[1]))(layers.Dense(image_dim[0] * image_dim[1], activation=keras.activations.relu)(input_label))
+    # label_emb = layers.Embedding(condition_dim ,1)(input_label)
+
+    emb_img = layers.Dense(image_dim[0] * image_dim[1], activation=keras.activations.relu)(input_label)
+    emb_img = layers.Reshape((image_dim[0], image_dim[1]))(emb_img)
+
+
     concat_img = tf.concat((input_image, emb_img), axis=2)
 
 
@@ -118,7 +66,42 @@ def build_discriminator(image_dim=(5_000,1),condition_dim=3,use_bn=True):
         x = layers.BatchNormalization()(x)
 
     x = layers.LeakyReLU(alpha=0.2)(x)
-    x = layers.Dropout(rate=0.3)(x)
+    x = layers.Dropout(rate=0.1)(x)
+
+    #  [None, 2500, 64] -> [None, 1250, 64]
+    x= layers.Conv1D(64, kernel_size=3, strides=2, padding='same')(x)
+    if use_bn:
+        x = layers.BatchNormalization()(x)
+
+    x = layers.LeakyReLU(alpha=0.2)(x)
+    x = layers.Dropout(rate=0.1)(x)
+    x = layers.Flatten()(x)
+
+    output = layers.Dense(1, activation='sigmoid')(x)
+
+    model = keras.Model(inputs=[input_image, input_label], outputs=output, name='discriminator')
+    model.summary()
+    return model
+def build_discriminator(image_dim=(5_000,1),condition_dim=9,use_bn=True):
+
+    input_image = layers.Input(shape=image_dim)
+    # input_label = layers.Input(shape=condition_dim, dtype=tf.float32)
+    # label_emb = layers.Embedding(condition_dim ,1)(input_label)
+
+    # emb_img = layers.Dense(image_dim[0] * image_dim[1], activation=keras.activations.relu)(input_label)
+    # emb_img = layers.Reshape((image_dim[0], image_dim[1]))(emb_img)
+
+
+    # concat_img = tf.concat((input_image, emb_img), axis=2)
+
+
+    # [None, 5000, 2 -> [None, 2500, 64]
+    x= layers.Conv1D(64, kernel_size=3, strides=2, padding='same')(input_image)#(concat_img)
+    if use_bn:
+        x = layers.BatchNormalization()(x)
+
+    x = layers.LeakyReLU(alpha=0.2)(x)
+    x = layers.Dropout(rate=0.1)(x)
 
     #  [None, 2500, 64] -> [None, 1250, 64]
     x= layers.Conv1D(64, kernel_size=3, strides=2, padding='same')(x)
@@ -127,33 +110,15 @@ def build_discriminator(image_dim=(5_000,1),condition_dim=3,use_bn=True):
 
 
     x = layers.LeakyReLU(alpha=0.2)(x)
-    x = layers.Dropout(rate=0.3)(x)
+    x = layers.Dropout(rate=0.1)(x)
     x = layers.Flatten()(x)
 
     output = layers.Dense(1, activation='sigmoid')(x)
 
-    model = keras.Model(inputs=[input_image, input_label], outputs=output, name='discriminator')
+    # model = keras.Model(inputs=[input_image, input_label], outputs=output, name='discriminator')
+    model = keras.Model(inputs=input_image, outputs=output, name='discriminator')
     model.summary()
     return model
-
-
-# 建立CGAN模型
-def build_cgan(generator, discriminator):
-    latent_dim = 100
-    condition_dim = 3
-
-    latent_input = keras.Input(shape=(latent_dim,))
-    condition_input = keras.Input(shape=(condition_dim,))
-
-    # 生成器生成圖像
-    generated_image = generator([latent_input, condition_input])
-
-    # CGAN的判別器接受生成的圖像和條件向量作為輸入
-    validity = discriminator([generated_image, condition_input])
-
-    model = keras.Model(inputs=[latent_input, condition_input], outputs=validity, name='cgan')
-    return model
-
 
 class ConditionalGAN(keras.Model):
     def __init__(self, discriminator, generator, latent_dim):
@@ -164,15 +129,27 @@ class ConditionalGAN(keras.Model):
         self.gen_loss_tracker = keras.metrics.Mean(name="generator_loss")
         self.disc_loss_tracker = keras.metrics.Mean(name="discriminator_loss")
 
+        self._b_acc = tf.keras.metrics.BinaryAccuracy()
+
     @property
     def metrics(self):
         return [self.gen_loss_tracker, self.disc_loss_tracker]
+
+    def _binary_accuracy(self, label, pred):
+
+        self._b_acc.reset_states()
+        self._b_acc.update_state(label, pred)
+        return self._b_acc.result()
 
     def compile(self, d_optimizer, g_optimizer, loss_fn):
         super().compile()
         self.d_optimizer = d_optimizer
         self.g_optimizer = g_optimizer
         self.loss_fn = loss_fn
+        self.acc_fn = 'Acc'
+
+    def _save_gen_graph(self,):
+        pass
 
     def train_step(self, data):
         # Unpack the data.
@@ -192,12 +169,14 @@ class ConditionalGAN(keras.Model):
 
         # 訓練判別器
         with tf.GradientTape() as tape:
-            predictions = self.discriminator([combined_images, combined_conditions])
+            # predictions = self.discriminator([combined_images, combined_conditions])
+            predictions = self.discriminator(combined_images)
             d_loss = self.loss_fn(combined_labels, predictions)
         grads = tape.gradient(d_loss, self.discriminator.trainable_weights)
         self.d_optimizer.apply_gradients(
             zip(grads, self.discriminator.trainable_weights)
         )
+        d_acc = self._binary_accuracy(combined_labels, predictions)
 
         # Sample random points in the latent space.
         random_latent_vectors = tf.random.normal(shape=(batch_size, self.latent_dim), dtype=tf.float64)
@@ -208,7 +187,8 @@ class ConditionalGAN(keras.Model):
         # of the discriminator)!
         with tf.GradientTape() as tape:
             fake_images = self.generator([random_latent_vectors, conditions])
-            predictions = self.discriminator([fake_images, conditions])
+            # predictions = self.discriminator([fake_images, conditions])
+            predictions = self.discriminator(fake_images)
             g_loss = self.loss_fn(misleading_labels, predictions)
         grads = tape.gradient(g_loss, self.generator.trainable_weights)
         self.g_optimizer.apply_gradients(zip(grads, self.generator.trainable_weights))
@@ -219,20 +199,22 @@ class ConditionalGAN(keras.Model):
         return {
             "g_loss": self.gen_loss_tracker.result(),
             "d_loss": self.disc_loss_tracker.result(),
+            "d_acc" : d_acc
         }
+
 
 data_dir =r'D:\dataset\MAFAULDA'
 use_columns= ['bearing1_axi','bearing1_rad','bearing1_tan', 'bearing2_axi','bearing2_rad','bearing2_tan']
 use_columns= ['bearing1_rad']
-batch_size = 128
+batch_size = 8
 shuffle = True
 epochs = 10000
 
 split_length=5_000
-channels = len(use_columns)#6
+channels = len(use_columns) #1
 
 image_dim = (split_length,channels)
-condition_dim = 3
+condition_dim = 7+2
 latent_dim = 100
 
 # 建立VibrationDataset實例
@@ -240,8 +222,6 @@ myVib = VibrationDataset(data_dir, use_columns=use_columns, batch_size=batch_siz
                          shuffle=shuffle, split_length=split_length)
 
 dataset = myVib.get_dataset()
-
-
 
 # 建立和編譯模型
 generator = build_generator(latent_dim,condition_dim)
@@ -252,15 +232,35 @@ discriminator = build_discriminator(image_dim, condition_dim=condition_dim)
 # cgan = build_cgan(generator, discriminator)
 cgan = ConditionalGAN( discriminator=discriminator, generator=generator, latent_dim=latent_dim)
 
-discriminator.compile(loss='binary_crossentropy', optimizer=keras.optimizers.Adam(learning_rate=0.0002, beta_1=0.5), metrics=['accuracy'])
-discriminator.trainable = False
-# cgan.compile(loss='binary_crossentropy', optimizer=keras.optimizers.Adam(learning_rate=0.0002, beta_1=0.5))
+# discriminator.compile(loss='binary_crossentropy', optimizer=keras.optimizers.Adam(learning_rate=0.0002, beta_1=0.5), metrics=['accuracy'])
 
 cgan.compile(
     d_optimizer=keras.optimizers.Adam(learning_rate=0.003),
     g_optimizer=keras.optimizers.Adam(learning_rate=0.003),
     loss_fn=keras.losses.BinaryCrossentropy(from_logits=True),
 )
+
+
+for real_images, conditions in dataset:
+
+    batch_size = tf.shape(real_images)[0]
+
+    random_latent_vectors = tf.random.normal(shape=(batch_size, latent_dim), dtype=tf.float64)
+
+    # Decode the noise (guided by labels) to fake images.
+    generated_images = generator([random_latent_vectors, conditions])  # output_shape = (batch_size, 5_000, 1)
+
+    # Assemble labels discriminating real from fake images.
+    combined_labels = tf.concat([tf.zeros((batch_size, 1)), tf.ones((batch_size, 1))], axis=0)
+    combined_images = tf.concat([generated_images, tf.cast(real_images, tf.float32)], axis=0)
+    combined_conditions = tf.concat([conditions, conditions], axis=0)
+
+
+    import matplotlib .pyplot as plt
+    plt.figure()
+    plt.plot(real_images[0].numpy().reshape(-1,))
+    plt.plot(generated_images[0].numpy().reshape(-1,))
+
 
 
 # 定義回調函數
