@@ -8,15 +8,14 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 
 class VibrationDataset:
-
-    def __init__(self, data_dir, use_columns:list, batch_size=32, shuffle=True, split_length=5_000, validation_split=0.1, test_split=0.1):
+    def __init__(self, data_dir, use_columns:list, batch_size=32, shuffle=True, split_length=5_000):
 
         self.data_dir = data_dir
         self.use_columns = use_columns
         self.batch_size = batch_size
         self.shuffle = shuffle
-        self.validation_split = validation_split
-        self.test_split = test_split
+        # self.validation_split = validation_split
+        # self.test_split = test_split
         self.categories = sorted(os.listdir(self.data_dir))
         self.num_categories = len(self.categories)
         self.split_length = split_length
@@ -91,8 +90,6 @@ class VibrationDataset:
 
                 all_features.extend(features.reshape(-1, self.split_length))
                 all_conditions.extend([conditions] * condition_repeat_times)
-                # all_features.append(features)
-                # all_conditions.append(conditions)
 
         features = np.array(all_features)
         conditions = np.array(all_conditions)
@@ -123,6 +120,20 @@ class VibrationDataset:
         features = scaler.fit_transform(features).reshape(-1, self.split_length, len(self.use_columns))
 
         dataset = self._preprocess_dataset(features, conditions)
+
+        return dataset
+
+    def __generator(self):
+        pass
+        yield 0,0
+    def get_dataset_gen (self):
+
+        dataset = tf.data.Dataset.from_generator(
+            self.__generator,
+            output_signature=(
+                tf.TensorSpec(shape=(self.split_length, len(self.use_columns)), dtype=tf.float32),
+                tf.TensorSpec(shape=(self.condition_dim), dtype=tf.float32)
+            ).batch(self.batch_size))
 
         return dataset
 

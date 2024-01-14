@@ -9,8 +9,6 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
-
-
 # 設定隨機種子以便重複結果
 np.random.seed(42)
 tf.random.set_seed(42)
@@ -47,41 +45,6 @@ def build_generator(latent_dim, condition_dim):
     return model
 
 # 定義判別器模型
-def build_discriminator(image_dim=(5_000,1),condition_dim=9,use_bn=True):
-
-    input_image = layers.Input(shape=image_dim)
-    input_label = layers.Input(shape=condition_dim, dtype=tf.float32)
-    # label_emb = layers.Embedding(condition_dim ,1)(input_label)
-
-    emb_img = layers.Dense(image_dim[0] * image_dim[1], activation=keras.activations.relu)(input_label)
-    emb_img = layers.Reshape((image_dim[0], image_dim[1]))(emb_img)
-
-
-    concat_img = tf.concat((input_image, emb_img), axis=2)
-
-
-    # [None, 5000, 2 -> [None, 2500, 64]
-    x= layers.Conv1D(64, kernel_size=3, strides=2, padding='same')(concat_img)
-    if use_bn:
-        x = layers.BatchNormalization()(x)
-
-    x = layers.LeakyReLU(alpha=0.2)(x)
-    x = layers.Dropout(rate=0.1)(x)
-
-    #  [None, 2500, 64] -> [None, 1250, 64]
-    x= layers.Conv1D(64, kernel_size=3, strides=2, padding='same')(x)
-    if use_bn:
-        x = layers.BatchNormalization()(x)
-
-    x = layers.LeakyReLU(alpha=0.2)(x)
-    x = layers.Dropout(rate=0.1)(x)
-    x = layers.Flatten()(x)
-
-    output = layers.Dense(1, activation='sigmoid')(x)
-
-    model = keras.Model(inputs=[input_image, input_label], outputs=output, name='discriminator')
-    model.summary()
-    return model
 def build_discriminator(image_dim=(5_000,1),condition_dim=9,use_bn=True):
 
     input_image = layers.Input(shape=image_dim)
@@ -204,9 +167,9 @@ class ConditionalGAN(keras.Model):
 
 
 data_dir =r'D:\dataset\MAFAULDA'
-use_columns= ['bearing1_axi','bearing1_rad','bearing1_tan', 'bearing2_axi','bearing2_rad','bearing2_tan']
+use_columns= ['bearing1_axi','bearing1_tan','bearing1_rad', 'bearing2_axi','bearing2_tan','bearing2_rad']
 use_columns= ['bearing1_rad']
-batch_size = 8
+batch_size = 16
 shuffle = True
 epochs = 10000
 
@@ -236,7 +199,7 @@ cgan = ConditionalGAN( discriminator=discriminator, generator=generator, latent_
 
 cgan.compile(
     d_optimizer=keras.optimizers.Adam(learning_rate=0.003),
-    g_optimizer=keras.optimizers.Adam(learning_rate=0.003),
+    g_optimizer=keras.optimizers.Adam(learning_rate=0.03),
     loss_fn=keras.losses.BinaryCrossentropy(from_logits=True),
 )
 
@@ -256,10 +219,10 @@ for real_images, conditions in dataset:
     combined_conditions = tf.concat([conditions, conditions], axis=0)
 
 
-    import matplotlib .pyplot as plt
-    plt.figure()
-    plt.plot(real_images[0].numpy().reshape(-1,))
-    plt.plot(generated_images[0].numpy().reshape(-1,))
+    # import matplotlib .pyplot as plt
+    # plt.figure()
+    # plt.plot(real_images[0].numpy().reshape(-1,))
+    # plt.plot(generated_images[0].numpy().reshape(-1,))
 
 
 
