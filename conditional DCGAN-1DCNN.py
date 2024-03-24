@@ -22,21 +22,24 @@ class cDCGAN():
     def __init__(self):
 
         self.model_type = "cDCGAN-1D_NORMAL_IMBALANCE_HMIS_VMIS"
-        self.data_path = r'./Data/ary_NORMAL_IMBLANCE_HMIS_VMIS_50x_rpmGT50.pkl'
+        self.data_path = r'./data/ary_NORMAL_IMBALANCE_50x_rpmGT50.pkl'
 
 
         self.gernerator_lr = 0.0002
         self.beta_1 = 0.5
         self.decay = 8e-8
         self.latence_dim = (100,)
-        self.data_dim = (500, 3)
-        self.condition_dim = (4,)
-        self.num_classes = 4
+        self.data_dim = (5000, 3)
+        self.condition_dim = (2,)
+        self.num_classes = 2
+        self.discriminator_output = 2*self.num_classes
 
         self.generator = self._build_gernerator()
         self.discriminator = self._build_discriminator()
 
         self.adversarial = self._build_adversarial()
+
+
 
         self.d_losses = []
         self.g_losses = []
@@ -55,13 +58,25 @@ class cDCGAN():
         with open(os.path.join(self.model_path, 'loss.txt'), 'a')as f:
             f.write('epoch,d_loss,g_loss\n')
 
+        with open(os.path.join(self.model_path, 'model_summary.txt'), 'a') as f:
+
+            self.generator .summary(print_fn=lambda x: f.write(x + '\n'))
+            self.discriminator .summary(print_fn=lambda x: f.write(x + '\n'))
+            self.adversarial .summary(print_fn=lambda x: f.write(x + '\n'))
+
+            f.write(f'data_path {self.data_path} \n')
+            f.write(f'data_dim {self.data_dim} \n')
+            f.write(f'latence_dim {self.latence_dim} \n')
+            f.write(f'condition_dim {self.condition_dim} \n')
+
+
     def load_data(self):
 
         print('loading data...', end='')
         with open(self.data_path,'rb')as f:
             dataset = pickle.load(f)
 
-        x_train = dataset['data'][:, :, :500]
+        x_train = dataset['data'][:, :, :5000]
 
         x_temp = self.prep.fit_transform(x_train.reshape((x_train.shape[0], -1)))
         X_train = x_temp.reshape(-1, self.data_dim[1], self.data_dim[0])
@@ -348,7 +363,7 @@ if __name__ == '__main__':
     cdcgan = cDCGAN()
 
 
-    cdcgan.train(epochs=1000, batch_size=6000)
+    cdcgan.train(epochs=1000, batch_size=64)
     # cdcgan.sample()
 
     # cdcgan.save_data()

@@ -25,6 +25,7 @@ use_columns = COLUMNS[1:3+1]
 
 
 def get_cat_lvl(path_):
+
     full_ind = path_.split('\\').index('full')
     l = path_.split('\\')[full_ind+1:]
     rpm = float(l[-1].replace('.csv',''))
@@ -87,7 +88,7 @@ def mySplitTrainTest(l:list=[]):
 def getCatPath(cat:FaultCat=FaultCat.NORMAL):
     
     basePath = r'\\tw100104365\MMFAB3\3.Project_data\9.Others\opendata\MAFAULDA\full'
-    
+    basePath = r'.\data\full'
     if cat == FaultCat.NORMAL:
         path = os.path.join(basePath,fr'{FaultCat.NORMAL.value}\*.csv')
         
@@ -95,6 +96,7 @@ def getCatPath(cat:FaultCat=FaultCat.NORMAL):
         path = os.path.join(basePath,rf'{cat.value}\*\*.csv')
         
     files = glob.glob(path, recursive=True)
+    files = [f for f in files if 'datetime' not in f]
     print('getting ... {}  len:{}'.format(cat,len(files)))
     
     return files
@@ -176,20 +178,31 @@ def getTraintest(llcat:List[FaultCat],train_test_split=True,rpm_threshold=0):
 
 if __name__ == '__main__' :
 
+    catsList = [FaultCat.NORMAL,FaultCat.IMBALANCE,FaultCat.H_MIS]
+    catsList = [FaultCat.NORMAL,FaultCat.IMBALANCE]
+
+    rpm_threshold = 50
+    aryTrain50x, aryTest50x, labelTrain, labelTest = getTraintest(catsList, train_test_split=False,
+                                                                  rpm_threshold=rpm_threshold)
+    obj = {'data': aryTrain50x,
+           'label': labelTrain}
+    with open(rf'./data/ary_NORMAL_IMBALANCE_50x_rpmGT{rpm_threshold}.pkl', 'wb') as f:
+        pickle.dump(obj, f, protocol=4)
 
 
-    d = {'IMBLANCE':FaultCat.IMBALANCE,
-         'HMIS':FaultCat.H_MIS,
-         'VMIS':FaultCat.V_MIS,
-         'BALL':FaultCat.UNDER_BALL,
-         'OUTTER':FaultCat.UNDER_OUTER}
-
-    for rpm_threshold in [0,20,35]:
-
-        for k,v in d.items():
-
-            aryTrain50x, aryTest50x, labelTrain, labelTest = getTraintest([v], train_test_split=False, rpm_threshold=rpm_threshold)
-            obj = {'data': aryTrain50x,
-                   'label': labelTrain}
-            with open(rf'../Data/ary_{k}_50x_rpmGT{rpm_threshold}.pkl', 'wb') as f:
-                pickle.dump(obj, f, protocol=4)
+    # return
+    # d = {'IMBLANCE':FaultCat.IMBALANCE,
+    #      'HMIS':FaultCat.H_MIS,
+    #      'VMIS':FaultCat.V_MIS,
+    #      'BALL':FaultCat.UNDER_BALL,
+    #      'OUTTER':FaultCat.UNDER_OUTER}
+    #
+    # for rpm_threshold in [0,20,35]:
+    #
+    #     for k,v in d.items():
+    #
+    #         aryTrain50x, aryTest50x, labelTrain, labelTest = getTraintest([v], train_test_split=False, rpm_threshold=rpm_threshold)
+    #         obj = {'data': aryTrain50x,
+    #                'label': labelTrain}
+    #         with open(rf'../Data/ary_{k}_50x_rpmGT{rpm_threshold}.pkl', 'wb') as f:
+    #             pickle.dump(obj, f, protocol=4)
