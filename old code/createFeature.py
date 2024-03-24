@@ -14,8 +14,6 @@ from scipy import signal
 import seaborn as sns
 from tqdm.notebook import tqdm
 
-# from myUtils import get_cat_lvl, print_acel_spectrum, print_vel_spectrum, print_acc_vel_spectrum, \
-    # load_print_acc_vel_spectrum
 
 COLUMNS = ['TACHO', 'UNDER_AXI', 'UNDER_TAN', 'UNDER_DIR', 'OVER_AXI', 'OVER_TAN', 'OVER_DIR', 'MICRO']
 '''

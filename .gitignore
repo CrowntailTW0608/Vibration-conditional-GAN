@@ -160,3 +160,6 @@ cython_debug/
 .idea/
 training_log.csv
 checkpoints/
+/exxp/
+/exp/
+/data/
